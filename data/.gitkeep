@@ -1,0 +1,4 @@
+# This folder will contain the resume index (resume_index.pkl)
+# For Vercel deployment, commit the .pkl file
+# For other platforms, it will be generated during build
+
