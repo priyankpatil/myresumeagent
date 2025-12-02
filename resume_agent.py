@@ -82,14 +82,14 @@ class ResumeAgent:
         chunks = self.chunk_text(text)
         self.texts = chunks
         
-        # Create embeddings
+        # Create embeddings (ensure float32 to save memory)
         print(f"Creating embeddings for {len(chunks)} chunks...")
-        self.embeddings = self.model.encode(chunks, show_progress_bar=True)
+        self.embeddings = self.model.encode(chunks, show_progress_bar=True).astype('float32')
         
         # Create FAISS index
         dimension = self.embeddings.shape[1]
         self.index = faiss.IndexFlatL2(dimension)
-        self.index.add(self.embeddings.astype('float32'))
+        self.index.add(self.embeddings)
         
         return {
             "chunks": len(chunks),
@@ -110,11 +110,11 @@ class ResumeAgent:
         if self.index is None or len(self.texts) == 0:
             return []
         
-        # Encode query
-        query_embedding = self.model.encode([query])
+        # Encode query (ensure float32 to save memory)
+        query_embedding = self.model.encode([query], convert_to_numpy=True).astype('float32')
         
         # Search
-        distances, indices = self.index.search(query_embedding.astype('float32'), top_k)
+        distances, indices = self.index.search(query_embedding, top_k)
         
         results = []
         for i, idx in enumerate(indices[0]):
@@ -124,6 +124,11 @@ class ResumeAgent:
                     "score": float(distances[0][i]),
                     "rank": i + 1
                 })
+        
+        # Clean up temporary arrays
+        del query_embedding, distances, indices
+        import gc
+        gc.collect()
         
         return results
     
@@ -170,11 +175,15 @@ class ResumeAgent:
         if not unique_contexts:
             return "I couldn't find relevant information in the resume. Please try rephrasing your question."
         
-        # Combine context chunks
-        context = "\n\n".join(unique_contexts)
+        # Combine context chunks (limit to prevent memory issues)
+        context = "\n\n".join(unique_contexts[:context_chunks])
         
         # Clean up the context (remove excessive whitespace)
         context = re.sub(r'\s+', ' ', context).strip()
+        
+        # Limit context length to prevent memory issues with LLM (3000 chars max)
+        if len(context) > 3000:
+            context = context[:3000] + "..."
         
         # Prepare prompt for LLM
         system_prompt = """You are a helpful assistant that answers questions about a resume. 
@@ -193,6 +202,7 @@ Please provide a clear and accurate answer based on the context above."""
         
         try:
             # Generate answer using Groq LLM
+            # Use smaller max_tokens to reduce memory usage
             response = self.groq_client.chat.completions.create(
                 model=self.groq_model,
                 messages=[
@@ -200,10 +210,16 @@ Please provide a clear and accurate answer based on the context above."""
                     {"role": "user", "content": user_prompt}
                 ],
                 temperature=0.3,  # Lower temperature for more factual responses
-                max_tokens=500
+                max_tokens=300  # Reduced from 500 to save memory
             )
             
             answer = response.choices[0].message.content.strip()
+            
+            # Force cleanup of response object
+            del response
+            import gc
+            gc.collect()
+            
             return answer
             
         except Exception as e:
@@ -238,7 +254,11 @@ Please provide a clear and accurate answer based on the context above."""
         with open(filepath, 'rb') as f:
             data = pickle.load(f)
         self.texts = data["texts"]
-        self.embeddings = data["embeddings"]
+        # Convert embeddings to float32 to save memory (if they're float64)
+        embeddings = data["embeddings"]
+        if embeddings.dtype == np.float64:
+            embeddings = embeddings.astype(np.float32)
+        self.embeddings = embeddings
         self.index = data["index"]
         
         # Re-initialize Groq client if not already initialized

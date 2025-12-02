@@ -7,7 +7,8 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
-from resume_agent import ResumeAgent
+# Lazy imports to reduce Lambda package size
+# ResumeAgent will be imported only when needed
 from dashboard_data import (
     get_candidate_info, get_timeline_data, get_map_data,
     get_skill_donut_data, get_skill_bar_data,
@@ -23,15 +24,26 @@ app = FastAPI(title="Priyank's Professional AI Agent")
 agent = None
 
 def load_agent():
-    """Load the agent from saved state."""
+    """Load the agent from saved state (lazy import to reduce package size)."""
     global agent
     if agent is None:
         try:
+            # Lazy import to avoid packaging heavy dependencies if not used
+            from resume_agent import ResumeAgent
+            import gc
+            
+            # Force garbage collection before loading to free up memory
+            gc.collect()
+            
+            print("Loading ResumeAgent...")
             agent = ResumeAgent()
             index_path = "data/resume_index.pkl"
             if os.path.exists(index_path):
                 try:
+                    print("Loading resume index...")
                     agent.load(index_path)
+                    # Force garbage collection after loading
+                    gc.collect()
                     print("✓ Loaded resume index from disk")
                 except Exception as e:
                     print(f"✗ Error loading index: {e}")
@@ -42,7 +54,34 @@ def load_agent():
             # Handle missing API key gracefully
             print(f"⚠ {str(e)}")
             agent = None
+        except ImportError as e:
+            print(f"⚠ Error importing ResumeAgent: {e}")
+            agent = None
+        except MemoryError as e:
+            print(f"⚠ Memory error loading agent: {e}")
+            print("⚠ Consider upgrading Render plan or optimizing memory usage")
+            agent = None
     return agent
+
+@app.on_event("startup")
+async def startup_event():
+    """Pre-load the agent at startup to avoid memory spikes during requests."""
+    print("Starting up... Pre-loading agent...")
+    try:
+        import psutil
+        import os
+        process = psutil.Process(os.getpid())
+        mem_before = process.memory_info().rss / 1024 / 1024
+        print(f"Memory before loading agent: {mem_before:.2f} MB")
+        
+        load_agent()
+        
+        mem_after = process.memory_info().rss / 1024 / 1024
+        print(f"Memory after loading agent: {mem_after:.2f} MB (+{mem_after - mem_before:.2f} MB)")
+        print(f"✓ Agent pre-loaded at startup")
+    except Exception as e:
+        print(f"⚠ Warning: Could not pre-load agent at startup: {e}")
+        print("⚠ Agent will be loaded on first request (may cause memory spike)")
 
 # Request/Response models
 class QuestionRequest(BaseModel):
@@ -60,18 +99,26 @@ async def read_root():
     html_content = get_dashboard_html(candidate)
     return HTMLResponse(content=html_content)
 
+# Cache template to avoid reading from disk on every request
+_template_cache = None
+
 def get_dashboard_html(candidate: dict) -> str:
     """Generate the HTML with responsive dashboard and agent."""
-    template_path = os.path.join(os.path.dirname(__file__), "templates", "dashboard.html")
+    global _template_cache
     
-    try:
-        with open(template_path, 'r', encoding='utf-8') as f:
-            template = f.read()
-    except FileNotFoundError:
-        # Fallback: return minimal HTML if template not found
-        return f"""<!DOCTYPE html>
+    # Cache template in memory to reduce file I/O
+    if _template_cache is None:
+        template_path = os.path.join(os.path.dirname(__file__), "templates", "dashboard.html")
+        try:
+            with open(template_path, 'r', encoding='utf-8') as f:
+                _template_cache = f.read()
+        except FileNotFoundError:
+            # Fallback: return minimal HTML if template not found
+            return f"""<!DOCTYPE html>
 <html><head><title>Error</title></head>
 <body><h1>Template file not found</h1></body></html>"""
+    
+    template = _template_cache
     
     # Replace placeholders in template
     html = template.format(
@@ -157,7 +204,9 @@ async def get_skill_bar(
 async def ask_question(request: QuestionRequest):
     """Handle question requests."""
     try:
-        agent = load_agent()
+        # Agent should be pre-loaded at startup, but check anyway
+        if agent is None:
+            agent = load_agent()
         
         if agent is None:
             raise HTTPException(
@@ -171,8 +220,15 @@ async def ask_question(request: QuestionRequest):
                 detail="Resume index not loaded. Please run 'python initialize.py' first."
             )
         
+        # Force garbage collection before processing to free up memory
+        import gc
+        gc.collect()
+        
         answer = agent.answer_question(request.question)
         relevant_chunks = agent.search(request.question, top_k=3)
+        
+        # Force garbage collection after processing
+        gc.collect()
         
         return QuestionResponse(
             answer=answer,
@@ -191,15 +247,49 @@ async def ask_question(request: QuestionRequest):
         print(f"Error in /api/ask: {error_details}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
+@app.on_event("startup")
+async def startup_event():
+    """Pre-load the agent at startup to avoid memory spikes during requests."""
+    print("Starting up... Pre-loading agent...")
+    try:
+        import psutil
+        import os
+        process = psutil.Process(os.getpid())
+        mem_before = process.memory_info().rss / 1024 / 1024
+        print(f"Memory before loading agent: {mem_before:.2f} MB")
+        
+        load_agent()
+        
+        mem_after = process.memory_info().rss / 1024 / 1024
+        print(f"Memory after loading agent: {mem_after:.2f} MB (+{mem_after - mem_before:.2f} MB)")
+        if agent is not None:
+            print(f"✓ Agent pre-loaded at startup")
+        else:
+            print(f"⚠ Agent not loaded at startup")
+    except Exception as e:
+        print(f"⚠ Warning: Could not pre-load agent at startup: {e}")
+        print("⚠ Agent will be loaded on first request (may cause memory spike)")
+
 @app.get("/api/health")
 async def health_check():
-    """Health check endpoint."""
-    agent = load_agent()
-    return {
-        "status": "healthy",
-        "agent_initialized": agent is not None,
-        "index_loaded": agent is not None and agent.index is not None and len(agent.texts) > 0 if agent else False
-    }
+    """Health check endpoint with memory monitoring."""
+    try:
+        import psutil
+        import os
+        process = psutil.Process(os.getpid())
+        memory_mb = process.memory_info().rss / 1024 / 1024
+        return {
+            "status": "healthy",
+            "memory_mb": round(memory_mb, 2),
+            "memory_percent": round(memory_mb / 512 * 100, 1) if memory_mb < 512 else 100,
+            "agent_loaded": agent is not None,
+            "agent_ready": agent is not None and agent.index is not None and len(agent.texts) > 0 if agent else False
+        }
+    except:
+        return {
+            "status": "healthy",
+            "agent_loaded": agent is not None
+        }
 
 if __name__ == "__main__":
     import uvicorn
