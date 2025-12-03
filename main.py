@@ -203,6 +203,7 @@ async def get_skill_bar(
 @app.post("/api/ask", response_model=QuestionResponse)
 async def ask_question(request: QuestionRequest):
     """Handle question requests."""
+    global agent
     try:
         # Agent should be pre-loaded at startup, but check anyway
         if agent is None:
@@ -294,4 +295,3 @@ async def health_check():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-

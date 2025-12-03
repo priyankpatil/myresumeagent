@@ -47,14 +47,14 @@ def initialize():
         chunks = agent.chunk_text(all_text)
         agent.texts = chunks
         
-        # Create embeddings
+        # Create embeddings (ensure float32 to save memory)
         print(f"Creating embeddings for {len(chunks)} chunks...")
-        agent.embeddings = agent.model.encode(chunks, show_progress_bar=True)
+        agent.embeddings = agent.model.encode(chunks, show_progress_bar=True).astype('float32')
         
         # Create FAISS index
         dimension = agent.embeddings.shape[1]
         agent.index = faiss.IndexFlatL2(dimension)
-        agent.index.add(agent.embeddings.astype('float32'))
+        agent.index.add(agent.embeddings)
         
         # Save the agent state
         os.makedirs("data", exist_ok=True)
