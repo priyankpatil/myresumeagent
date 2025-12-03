@@ -63,26 +63,6 @@ def load_agent():
             agent = None
     return agent
 
-@app.on_event("startup")
-async def startup_event():
-    """Pre-load the agent at startup to avoid memory spikes during requests."""
-    print("Starting up... Pre-loading agent...")
-    try:
-        import psutil
-        import os
-        process = psutil.Process(os.getpid())
-        mem_before = process.memory_info().rss / 1024 / 1024
-        print(f"Memory before loading agent: {mem_before:.2f} MB")
-        
-        load_agent()
-        
-        mem_after = process.memory_info().rss / 1024 / 1024
-        print(f"Memory after loading agent: {mem_after:.2f} MB (+{mem_after - mem_before:.2f} MB)")
-        print(f"✓ Agent pre-loaded at startup")
-    except Exception as e:
-        print(f"⚠ Warning: Could not pre-load agent at startup: {e}")
-        print("⚠ Agent will be loaded on first request (may cause memory spike)")
-
 # Request/Response models
 class QuestionRequest(BaseModel):
     question: str
@@ -252,17 +232,35 @@ async def ask_question(request: QuestionRequest):
 async def startup_event():
     """Pre-load the agent at startup to avoid memory spikes during requests."""
     print("Starting up... Pre-loading agent...")
+    
+    # Try to get memory info (optional - psutil may not be installed)
+    mem_before = None
     try:
         import psutil
         import os
         process = psutil.Process(os.getpid())
         mem_before = process.memory_info().rss / 1024 / 1024
         print(f"Memory before loading agent: {mem_before:.2f} MB")
-        
+    except ImportError:
+        print("Note: psutil not installed - skipping memory monitoring")
+    except Exception:
+        pass  # Ignore other errors with psutil
+    
+    # Load the agent (this is the important part)
+    try:
         load_agent()
         
-        mem_after = process.memory_info().rss / 1024 / 1024
-        print(f"Memory after loading agent: {mem_after:.2f} MB (+{mem_after - mem_before:.2f} MB)")
+        # Try to get memory after loading
+        if mem_before is not None:
+            try:
+                import psutil
+                import os
+                process = psutil.Process(os.getpid())
+                mem_after = process.memory_info().rss / 1024 / 1024
+                print(f"Memory after loading agent: {mem_after:.2f} MB (+{mem_after - mem_before:.2f} MB)")
+            except:
+                pass
+        
         if agent is not None:
             print(f"✓ Agent pre-loaded at startup")
         else:
@@ -286,7 +284,15 @@ async def health_check():
             "agent_loaded": agent is not None,
             "agent_ready": agent is not None and agent.index is not None and len(agent.texts) > 0 if agent else False
         }
-    except:
+    except ImportError:
+        # psutil not installed - return basic health check
+        return {
+            "status": "healthy",
+            "agent_loaded": agent is not None,
+            "agent_ready": agent is not None and agent.index is not None and len(agent.texts) > 0 if agent else False,
+            "note": "psutil not installed - memory monitoring unavailable"
+        }
+    except Exception:
         return {
             "status": "healthy",
             "agent_loaded": agent is not None
