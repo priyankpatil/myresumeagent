@@ -3,7 +3,27 @@
   "builds": [
     {
       "src": "main.py",
-      "use": "@vercel/python"
+      "use": "@vercel/python",
+      "config": {
+        "includeFiles": [
+          "templates/**",
+          "data/resume_index.pkl",
+          "resume_data/**"
+        ],
+        "excludeFiles": [
+          "**/__pycache__/**",
+          "**/*.pyc",
+          "**/.git/**",
+          "**/resumes/**",
+          "**/.venv/**",
+          "**/venv/**",
+          "**/node_modules/**",
+          "**/*.md",
+          "**/test/**",
+          "**/tests/**"
+        ],
+        "maxLambdaSize": "50mb"
+      }
     }
   ],
   "routes": [

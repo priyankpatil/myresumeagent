@@ -242,7 +242,8 @@ async def startup_event():
         mem_before = process.memory_info().rss / 1024 / 1024
         print(f"Memory before loading agent: {mem_before:.2f} MB")
     except ImportError:
-        print("Note: psutil not installed - skipping memory monitoring")
+        # psutil is optional - skip memory monitoring
+        pass
     except Exception:
         pass  # Ignore other errors with psutil
     
