@@ -120,22 +120,16 @@ class ResumeAgent:
         # Ensure query_embedding is contiguous (FAISS requirement)
         query_embedding = np.ascontiguousarray(query_embedding, dtype=np.float32)
         
-        # Validate index - check for search method (more reliable than isinstance for SWIG-wrapped classes)
-        if not hasattr(self.index, 'search'):
-            raise AttributeError(f"Index does not have a 'search' method. Index type: {type(self.index)}")
-        
-        # Additional validation: check for common FAISS index attributes
-        if not hasattr(self.index, 'ntotal') and not hasattr(self.index, 'is_trained'):
-            # This is a basic sanity check - most FAISS indices have these
-            print(f"Warning: Index type {type(self.index)} may not be a valid FAISS index")
-        
         # Search - FAISS search signature: search(x, k) where x is query vectors and k is number of results
+        # Don't use hasattr() on SWIG-wrapped FAISS objects as it triggers attribute access errors
         try:
             distances, indices = self.index.search(query_embedding, top_k)
+        except AttributeError as e:
+            raise AttributeError(f"Index does not have a 'search' method. Index type: {type(self.index)}") from e
         except Exception as e:
             print(f"FAISS search error: {e}")
             print(f"Query embedding shape: {query_embedding.shape}, dtype: {query_embedding.dtype}")
-            print(f"Index type: {type(self.index)}, is_trained: {self.index.is_trained if hasattr(self.index, 'is_trained') else 'N/A'}")
+            print(f"Index type: {type(self.index)}")
             raise
         
         results = []
@@ -283,17 +277,15 @@ Please provide a clear and accurate answer based on the context above."""
         self.embeddings = embeddings
         self.index = data["index"]
         
-        # Validate index - check for search method (more reliable than isinstance for SWIG-wrapped classes)
-        if not hasattr(self.index, 'search'):
-            raise TypeError(f"Loaded index does not have a 'search' method. Got type: {type(self.index)}. "
-                          f"Index may be corrupted or created with a different FAISS version.")
+        # Basic validation - just check that index exists
+        # Don't try to access any FAISS attributes as SWIG-wrapped objects
+        # will throw errors when attributes are accessed via hasattr/getattr
+        if self.index is None:
+            raise ValueError("Loaded index is None. Index may be corrupted.")
         
-        # Verify index is trained and has vectors (if these attributes exist)
-        if hasattr(self.index, 'is_trained') and not self.index.is_trained:
-            raise ValueError("FAISS index is not trained. Index may be corrupted.")
-        
-        if hasattr(self.index, 'ntotal') and self.index.ntotal == 0:
-            raise ValueError("FAISS index is empty. Please re-run 'python initialize.py'.")
+        # Note: We don't validate FAISS-specific attributes here because
+        # SWIG-wrapped FAISS objects throw errors when accessed via hasattr/getattr.
+        # The index will be validated when we actually use it in the search() method.
         
         # Re-initialize Groq client if not already initialized
         if not hasattr(self, 'groq_client') or self.groq_client is None:
