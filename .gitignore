@@ -50,4 +50,7 @@ Thumbs.db
 
 # Vercel
 .vercel
+.vercelignore
+vercel.json
+VERCEL_*.md
 

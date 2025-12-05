@@ -113,12 +113,33 @@ class ResumeAgent:
         # Encode query (ensure float32 to save memory)
         query_embedding = self.model.encode([query], convert_to_numpy=True).astype('float32')
         
-        # Search
-        distances, indices = self.index.search(query_embedding, top_k)
+        # Ensure query_embedding is 2D (FAISS requires 2D array even for single query)
+        if query_embedding.ndim == 1:
+            query_embedding = query_embedding.reshape(1, -1)
+        
+        # Ensure query_embedding is contiguous (FAISS requirement)
+        query_embedding = np.ascontiguousarray(query_embedding, dtype=np.float32)
+        
+        # Validate index type
+        if not isinstance(self.index, faiss.Index):
+            raise TypeError(f"Index is not a FAISS index. Got type: {type(self.index)}")
+        
+        # Verify search method exists and has correct signature
+        if not hasattr(self.index, 'search'):
+            raise AttributeError(f"FAISS index does not have a 'search' method. Index type: {type(self.index)}")
+        
+        # Search - FAISS search signature: search(x, k) where x is query vectors and k is number of results
+        try:
+            distances, indices = self.index.search(query_embedding, top_k)
+        except Exception as e:
+            print(f"FAISS search error: {e}")
+            print(f"Query embedding shape: {query_embedding.shape}, dtype: {query_embedding.dtype}")
+            print(f"Index type: {type(self.index)}, is_trained: {self.index.is_trained if hasattr(self.index, 'is_trained') else 'N/A'}")
+            raise
         
         results = []
         for i, idx in enumerate(indices[0]):
-            if idx < len(self.texts):
+            if idx < len(self.texts) and idx >= 0:  # Check for valid index
                 results.append({
                     "text": self.texts[idx],
                     "score": float(distances[0][i]),
@@ -260,6 +281,18 @@ Please provide a clear and accurate answer based on the context above."""
             embeddings = embeddings.astype(np.float32)
         self.embeddings = embeddings
         self.index = data["index"]
+        
+        # Validate that index is a FAISS index
+        if not isinstance(self.index, faiss.Index):
+            raise TypeError(f"Loaded index is not a FAISS index. Got type: {type(self.index)}. "
+                          f"Index may be corrupted or created with a different FAISS version.")
+        
+        # Verify index is trained and has vectors
+        if hasattr(self.index, 'is_trained') and not self.index.is_trained:
+            raise ValueError("FAISS index is not trained. Index may be corrupted.")
+        
+        if hasattr(self.index, 'ntotal') and self.index.ntotal == 0:
+            raise ValueError("FAISS index is empty. Please re-run 'python initialize.py'.")
         
         # Re-initialize Groq client if not already initialized
         if not hasattr(self, 'groq_client') or self.groq_client is None:

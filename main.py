@@ -2,6 +2,7 @@
 FastAPI application for Resume Q&A Agent
 """
 import os
+from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
@@ -17,8 +18,6 @@ from dashboard_data import (
 
 # Load environment variables from .env file
 load_dotenv()
-
-app = FastAPI(title="Priyank's Professional AI Agent")
 
 # Initialize agent
 agent = None
@@ -62,6 +61,61 @@ def load_agent():
             print("⚠ Consider upgrading Render plan or optimizing memory usage")
             agent = None
     return agent
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Lifespan event handler for startup and shutdown.
+    Replaces deprecated @app.on_event("startup") decorator.
+    """
+    # Startup: Pre-load the agent to avoid memory spikes during requests
+    print("Starting up... Pre-loading agent...")
+    
+    # Try to get memory info (optional - psutil may not be installed)
+    mem_before = None
+    try:
+        import psutil
+        import os
+        process = psutil.Process(os.getpid())
+        mem_before = process.memory_info().rss / 1024 / 1024
+        print(f"Memory before loading agent: {mem_before:.2f} MB")
+    except ImportError:
+        # psutil is optional - skip memory monitoring
+        pass
+    except Exception:
+        pass  # Ignore other errors with psutil
+    
+    # Load the agent (this is the important part)
+    try:
+        load_agent()
+        
+        # Try to get memory after loading
+        if mem_before is not None:
+            try:
+                import psutil
+                import os
+                process = psutil.Process(os.getpid())
+                mem_after = process.memory_info().rss / 1024 / 1024
+                print(f"Memory after loading agent: {mem_after:.2f} MB (+{mem_after - mem_before:.2f} MB)")
+            except:
+                pass
+        
+        if agent is not None:
+            print(f"✓ Agent pre-loaded at startup")
+        else:
+            print(f"⚠ Agent not loaded at startup")
+    except Exception as e:
+        print(f"⚠ Warning: Could not pre-load agent at startup: {e}")
+        print("⚠ Agent will be loaded on first request (may cause memory spike)")
+    
+    # Yield control to the application
+    yield
+    
+    # Shutdown: Cleanup code can go here if needed in the future
+    # For now, we don't have any shutdown logic
+    print("Shutting down...")
+
+app = FastAPI(title="Priyank's Professional AI Agent", lifespan=lifespan)
 
 # Request/Response models
 class QuestionRequest(BaseModel):
@@ -227,48 +281,6 @@ async def ask_question(request: QuestionRequest):
         error_details = traceback.format_exc()
         print(f"Error in /api/ask: {error_details}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-
-@app.on_event("startup")
-async def startup_event():
-    """Pre-load the agent at startup to avoid memory spikes during requests."""
-    print("Starting up... Pre-loading agent...")
-    
-    # Try to get memory info (optional - psutil may not be installed)
-    mem_before = None
-    try:
-        import psutil
-        import os
-        process = psutil.Process(os.getpid())
-        mem_before = process.memory_info().rss / 1024 / 1024
-        print(f"Memory before loading agent: {mem_before:.2f} MB")
-    except ImportError:
-        # psutil is optional - skip memory monitoring
-        pass
-    except Exception:
-        pass  # Ignore other errors with psutil
-    
-    # Load the agent (this is the important part)
-    try:
-        load_agent()
-        
-        # Try to get memory after loading
-        if mem_before is not None:
-            try:
-                import psutil
-                import os
-                process = psutil.Process(os.getpid())
-                mem_after = process.memory_info().rss / 1024 / 1024
-                print(f"Memory after loading agent: {mem_after:.2f} MB (+{mem_after - mem_before:.2f} MB)")
-            except:
-                pass
-        
-        if agent is not None:
-            print(f"✓ Agent pre-loaded at startup")
-        else:
-            print(f"⚠ Agent not loaded at startup")
-    except Exception as e:
-        print(f"⚠ Warning: Could not pre-load agent at startup: {e}")
-        print("⚠ Agent will be loaded on first request (may cause memory spike)")
 
 @app.get("/api/health")
 async def health_check():
