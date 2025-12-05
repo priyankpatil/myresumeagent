@@ -120,13 +120,14 @@ class ResumeAgent:
         # Ensure query_embedding is contiguous (FAISS requirement)
         query_embedding = np.ascontiguousarray(query_embedding, dtype=np.float32)
         
-        # Validate index type
-        if not isinstance(self.index, faiss.Index):
-            raise TypeError(f"Index is not a FAISS index. Got type: {type(self.index)}")
-        
-        # Verify search method exists and has correct signature
+        # Validate index - check for search method (more reliable than isinstance for SWIG-wrapped classes)
         if not hasattr(self.index, 'search'):
-            raise AttributeError(f"FAISS index does not have a 'search' method. Index type: {type(self.index)}")
+            raise AttributeError(f"Index does not have a 'search' method. Index type: {type(self.index)}")
+        
+        # Additional validation: check for common FAISS index attributes
+        if not hasattr(self.index, 'ntotal') and not hasattr(self.index, 'is_trained'):
+            # This is a basic sanity check - most FAISS indices have these
+            print(f"Warning: Index type {type(self.index)} may not be a valid FAISS index")
         
         # Search - FAISS search signature: search(x, k) where x is query vectors and k is number of results
         try:
@@ -282,12 +283,12 @@ Please provide a clear and accurate answer based on the context above."""
         self.embeddings = embeddings
         self.index = data["index"]
         
-        # Validate that index is a FAISS index
-        if not isinstance(self.index, faiss.Index):
-            raise TypeError(f"Loaded index is not a FAISS index. Got type: {type(self.index)}. "
+        # Validate index - check for search method (more reliable than isinstance for SWIG-wrapped classes)
+        if not hasattr(self.index, 'search'):
+            raise TypeError(f"Loaded index does not have a 'search' method. Got type: {type(self.index)}. "
                           f"Index may be corrupted or created with a different FAISS version.")
         
-        # Verify index is trained and has vectors
+        # Verify index is trained and has vectors (if these attributes exist)
         if hasattr(self.index, 'is_trained') and not self.index.is_trained:
             raise ValueError("FAISS index is not trained. Index may be corrupted.")
         
