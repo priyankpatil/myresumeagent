@@ -124,8 +124,27 @@ class ResumeAgent:
         # Don't use hasattr() on SWIG-wrapped FAISS objects as it triggers attribute access errors
         try:
             distances, indices = self.index.search(query_embedding, top_k)
-        except AttributeError as e:
-            raise AttributeError(f"Index does not have a 'search' method. Index type: {type(self.index)}") from e
+        except (TypeError, AttributeError) as e:
+            error_msg = str(e)
+            # Check if this is a FAISS version mismatch error
+            if "missing" in error_msg and "required positional arguments" in error_msg:
+                print(f"⚠ FAISS version mismatch detected. Recreating index from embeddings...")
+                print(f"Error: {error_msg}")
+                # Recreate the index from embeddings (this should work with current FAISS version)
+                if self.embeddings is not None and len(self.embeddings) > 0:
+                    dimension = self.embeddings.shape[1]
+                    self.index = faiss.IndexFlatL2(dimension)
+                    self.index.add(self.embeddings)
+                    print(f"✓ Index recreated successfully")
+                    # Retry the search
+                    distances, indices = self.index.search(query_embedding, top_k)
+                else:
+                    raise ValueError("Cannot recreate index: embeddings are missing or empty")
+            else:
+                # Re-raise other AttributeError/TypeError
+                if isinstance(e, AttributeError):
+                    raise AttributeError(f"Index does not have a 'search' method. Index type: {type(self.index)}") from e
+                raise
         except Exception as e:
             print(f"FAISS search error: {e}")
             print(f"Query embedding shape: {query_embedding.shape}, dtype: {query_embedding.dtype}")
