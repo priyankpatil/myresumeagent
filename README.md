@@ -12,7 +12,7 @@ A beautiful, full-stack web application that combines data visualization, semant
 
 ## ✨ What Makes This Special?
 
-This isn't just another resume parser. It's a **complete professional storytelling platform** that:
+This let's you tell your story in a visually pleasing dashboard format. It's a **complete professional storytelling platform** that:
 
 - 📊 **Visualizes Your Career Journey** with interactive, responsive charts
 - 🤖 **Answers Questions** about your experience using AI-powered semantic search
@@ -63,29 +63,29 @@ This isn't just another resume parser. It's a **complete professional storytelli
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    Frontend (HTML/JS)                    │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
-│  │   Dashboard  │  │  Interactive │  │   AI Agent   │  │
-│  │    Charts    │  │   Filtering  │  │   Chat UI    │  │
-│  └──────────────┘  └──────────────┘  └──────────────┘  │
+│                    Frontend (HTML/JS)                   │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │
+│  │   Dashboard  │  │  Interactive │  │   AI Agent   │   │
+│  │    Charts    │  │   Filtering  │  │   Chat UI    │   │
+│  └──────────────┘  └──────────────┘  └──────────────┘   │
 └─────────────────────────────────────────────────────────┘
                          ↕ HTTP/REST API
 ┌─────────────────────────────────────────────────────────┐
-│              FastAPI Backend (Python)                    │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
-│  │ Dashboard    │  │ Resume Agent │  │  Data        │  │
-│  │ Data Module  │  │ (FAISS +     │  │  Processing  │  │
-│  │              │  │  Groq LLM)   │  │              │  │
-│  └──────────────┘  └──────────────┘  └──────────────┘  │
+│              FastAPI Backend (Python)                   │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │
+│  │ Dashboard    │  │ Resume Agent │  │  Data        │   │
+│  │ Data Module  │  │ (FAISS +     │  │  Processing  │   │
+│  │              │  │  Groq LLM)   │  │              │   │
+│  └──────────────┘  └──────────────┘  └──────────────┘   │
 └─────────────────────────────────────────────────────────┘
                          ↕
 ┌─────────────────────────────────────────────────────────┐
-│                    Data Layer                             │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
-│  │ Excel Files  │  │ Vector Store │  │  Embeddings  │  │
-│  │ (Resume Data)│  │  (FAISS)     │  │  (Sentence   │  │
+│                    Data Layer                           │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │
+│  │ Excel Files  │  │ Vector Store │  │  Embeddings  │   │
+│  │ (Resume Data)│  │  (FAISS)     │  │  (Sentence   │   │
 │  │              │  │              │  │  Transformers)│  │
-│  └──────────────┘  └──────────────┘  └──────────────┘  │
+│  └──────────────┘  └──────────────┘  └──────────────┘   │
 └─────────────────────────────────────────────────────────┘
 ```
 
