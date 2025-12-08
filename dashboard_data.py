@@ -106,17 +106,45 @@ def get_timeline_data(filtered_df: Optional[pd.DataFrame] = None) -> List[Dict]:
     } for _, row in data.iterrows()]
 
 def get_map_data(filtered_df: Optional[pd.DataFrame] = None) -> List[Dict]:
-    """Get map data for the chart."""
+    """Get map data for the chart with city and experience counts (Employment and Internship only)."""
     data = filtered_df if filtered_df is not None else resume_df
     if data is None or data.empty:
         return []
     
-    loc_data = data[['country', 'city', 'combined_label']].drop_duplicates()
-    return [{
-        "country": str(row['country']),
-        "city": str(row['city']),
-        "label": str(row['combined_label'])
-    } for _, row in loc_data.iterrows()]
+    # Filter to only include Employment and Internship (exclude Education)
+    work_data = data[data['category'].isin(['Employment', 'Internship'])].copy()
+    
+    if work_data.empty:
+        return []
+    
+    # Get unique entries (each represents a work experience)
+    loc_data = work_data[['country', 'city', 'combined_label']].drop_duplicates()
+    
+    # Group by country to calculate metrics
+    country_stats = {}
+    for _, row in loc_data.iterrows():
+        country = str(row['country'])
+        city = str(row['city'])
+        
+        if country not in country_stats:
+            country_stats[country] = {
+                "cities": set(),
+                "experiences": 0
+            }
+        
+        country_stats[country]["cities"].add(city)
+        country_stats[country]["experiences"] += 1
+    
+    # Convert to list format
+    result = []
+    for country, stats in country_stats.items():
+        result.append({
+            "country": country,
+            "city_count": len(stats["cities"]),
+            "experience_count": stats["experiences"]
+        })
+    
+    return result
 
 def get_skill_donut_data(filtered_df: Optional[pd.DataFrame] = None) -> List[Dict]:
     """Get skill donut chart data."""
