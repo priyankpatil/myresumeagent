@@ -224,16 +224,16 @@ class ResumeAgent:
         system_prompt = """You are a helpful assistant that answers questions about a resume. 
 Use only the information provided in the context from the resume. 
 Carefully review all the context provided - information may be spread across multiple sections.
-If you find relevant information in the context, provide a clear and complete answer.
+If you find relevant information in the context, provide a clear and complete answer directly without prefacing with phrases like "Based on the context" or "According to the resume".
 If the context truly doesn't contain enough information to answer the question, say so politely.
-Be concise, accurate, and professional in your responses."""
+Be concise, accurate, and professional in your responses. Answer naturally and conversationally."""
         
         user_prompt = f"""Context from the resume:
 {context}
 
 Question: {question}
 
-Please provide a clear and accurate answer based on the context above."""
+Please provide a clear and accurate answer."""
         
         try:
             # Generate answer using Groq LLM
