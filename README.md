@@ -84,7 +84,7 @@ This let's you tell your story in a visually pleasing dashboard format. It's a *
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │
 │  │ Excel Files  │  │ Vector Store │  │  Embeddings  │   │
 │  │ (Resume Data)│  │  (FAISS)     │  │  (Sentence   │   │
-│  │              │  │              │  │  Transformers)│  │
+│  │              │  │              │  │ Transformers)│   │
 │  └──────────────┘  └──────────────┘  └──────────────┘   │
 └─────────────────────────────────────────────────────────┘
 ```
