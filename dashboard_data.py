@@ -9,6 +9,12 @@ from typing import Dict, Optional, List
 DATA_PATH = os.path.join(os.path.dirname(__file__), "resume_data")
 FILE_NAME = "resume_data.xlsx"
 
+# Global variables to cache data
+_candidate_df = None
+_resume_df = None
+_skills_df = None
+_master_df = None
+
 def load_data():
     """Loads and preprocesses data from the Excel file."""
     try:
@@ -50,11 +56,51 @@ def load_data():
         print(f"Error loading dashboard data: {e}")
         return None, None, None, None
 
+def reload_data():
+    """Reload data from Excel file (useful when Excel is updated)."""
+    global _candidate_df, _resume_df, _skills_df, _master_df
+    _candidate_df, _resume_df, _skills_df, _master_df = load_data()
+    print("✓ Dashboard data reloaded from Excel")
+
+def get_data():
+    """Get cached data, loading if necessary."""
+    global _candidate_df, _resume_df, _skills_df, _master_df
+    if _candidate_df is None:
+        _candidate_df, _resume_df, _skills_df, _master_df = load_data()
+    return _candidate_df, _resume_df, _skills_df, _master_df
+
 # Load data on module import
-candidate_df, resume_df, skills_df, master_df = load_data()
+_candidate_df, _resume_df, _skills_df, _master_df = load_data()
+
+# For backward compatibility
+candidate_df = _candidate_df
+resume_df = _resume_df
+skills_df = _skills_df
+master_df = _master_df
+
+def format_url(url: Optional[str]) -> Optional[str]:
+    """Format URL to ensure it has proper protocol (https://)."""
+    if not url or pd.isna(url) or str(url).strip() == '':
+        return None
+    
+    url = str(url).strip()
+    if not url:
+        return None
+    
+    # If URL doesn't start with http:// or https://, add https://
+    if not url.startswith(('http://', 'https://')):
+        # Handle LinkedIn URLs that might just be the profile path
+        if 'linkedin.com' in url.lower():
+            url = 'https://' + url.lstrip('/')
+        else:
+            url = 'https://' + url
+    
+    return url
 
 def get_candidate_info() -> Dict:
     """Get candidate header information."""
+    candidate_df, resume_df, _, _ = get_data()
+    
     if candidate_df is not None and not candidate_df.empty:
         c_name = candidate_df.iloc[0]['full_name']
         c_email = candidate_df.iloc[0]['primary_email']
@@ -63,6 +109,10 @@ def get_candidate_info() -> Dict:
         # Get LinkedIn and GitHub if available
         c_linkedin = candidate_df.iloc[0].get('linkedin_profile', '')
         c_github = candidate_df.iloc[0].get('github_profile', '')
+        
+        # Format URLs properly
+        c_linkedin = format_url(c_linkedin) if pd.notnull(c_linkedin) else None
+        c_github = format_url(c_github) if pd.notnull(c_github) else None
         
         if resume_df is not None and not resume_df.empty:
             latest_entry = resume_df.sort_values('date_ended', ascending=False).iloc[0]
@@ -75,8 +125,8 @@ def get_candidate_info() -> Dict:
             "email": c_email,
             "phone": c_phone,
             "location": c_loc,
-            "linkedin": c_linkedin if pd.notnull(c_linkedin) else None,
-            "github": c_github if pd.notnull(c_github) else None
+            "linkedin": c_linkedin,
+            "github": c_github
         }
     return {
         "name": "Candidate Name",
@@ -89,6 +139,7 @@ def get_candidate_info() -> Dict:
 
 def get_timeline_data(filtered_df: Optional[pd.DataFrame] = None) -> List[Dict]:
     """Get timeline data for the chart."""
+    _, resume_df, _, _ = get_data()
     data = filtered_df if filtered_df is not None else resume_df
     if data is None or data.empty:
         return []
@@ -107,6 +158,7 @@ def get_timeline_data(filtered_df: Optional[pd.DataFrame] = None) -> List[Dict]:
 
 def get_map_data(filtered_df: Optional[pd.DataFrame] = None) -> List[Dict]:
     """Get map data for the chart with city and experience counts (Employment and Internship only)."""
+    _, resume_df, _, _ = get_data()
     data = filtered_df if filtered_df is not None else resume_df
     if data is None or data.empty:
         return []
@@ -148,6 +200,7 @@ def get_map_data(filtered_df: Optional[pd.DataFrame] = None) -> List[Dict]:
 
 def get_skill_donut_data(filtered_df: Optional[pd.DataFrame] = None) -> List[Dict]:
     """Get skill donut chart data."""
+    _, _, skills_df, _ = get_data()
     data = filtered_df if filtered_df is not None else skills_df
     if data is None or data.empty:
         return []
@@ -160,6 +213,7 @@ def get_skill_donut_data(filtered_df: Optional[pd.DataFrame] = None) -> List[Dic
 
 def get_skill_bar_data(filtered_df: Optional[pd.DataFrame] = None) -> List[Dict]:
     """Get skill bar chart data."""
+    _, _, skills_df, _ = get_data()
     data = filtered_df if filtered_df is not None else skills_df
     if data is None or data.empty:
         return []
@@ -173,18 +227,21 @@ def get_skill_bar_data(filtered_df: Optional[pd.DataFrame] = None) -> List[Dict]
 
 def filter_by_institution(institution: str) -> Optional[pd.DataFrame]:
     """Filter master_df by institution."""
+    _, _, _, master_df = get_data()
     if master_df is None:
         return None
     return master_df[master_df['display_institution'] == institution]
 
 def filter_by_skill_type(skill_type: str) -> Optional[pd.DataFrame]:
     """Filter master_df by skill type."""
+    _, _, _, master_df = get_data()
     if master_df is None:
         return None
     return master_df[master_df['skill_type'] == skill_type]
 
 def filter_by_skill(skill: str) -> Optional[pd.DataFrame]:
     """Filter master_df by specific skill."""
+    _, _, _, master_df = get_data()
     if master_df is None:
         return None
     return master_df[master_df['skill'] == skill]
