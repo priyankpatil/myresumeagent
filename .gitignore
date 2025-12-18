@@ -43,6 +43,7 @@ data/*
 # Environment
 .env
 .env.local
+GA4_measurement_id.txt
 
 # OS
 .DS_Store

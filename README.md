@@ -240,6 +240,7 @@ This project is optimized for Render deployment with memory-efficient configurat
 
 2. **Set environment variables in Render:**
    - `GROQ_API_KEY`: Your Groq API key
+   - `GA4_MEASUREMENT_ID`: (Optional) Your Google Analytics 4 Measurement ID for tracking
    - `TOKENIZERS_PARALLELISM`: `false`
 
 3. **Deploy:**
@@ -293,6 +294,34 @@ See [MOBILE_TESTING.md](MOBILE_TESTING.md) for comprehensive mobile testing guid
 ### Environment Variables
 
 - `GROQ_API_KEY`: Required. Your Groq API key for LLM responses
+- `GA4_MEASUREMENT_ID`: Optional. Google Analytics 4 Measurement ID for web analytics tracking (e.g., `G-XXXXXXXXXX`)
+
+#### Setting Up Google Analytics (Optional)
+
+To track page views, user regions, and other basic analytics:
+
+1. **Create a Google Analytics 4 property:**
+   - Go to [Google Analytics](https://analytics.google.com/)
+   - Create a new GA4 property for your website
+   - Copy your Measurement ID (format: `G-XXXXXXXXXX`)
+
+2. **Add to your `.env` file:**
+   ```bash
+   echo "GA4_MEASUREMENT_ID=G-XXXXXXXXXX" >> .env
+   ```
+
+3. **For Render deployment:**
+   - Add `GA4_MEASUREMENT_ID` as an environment variable in your Render dashboard
+
+Once configured, Google Analytics will automatically track:
+- Page views
+- User locations (country/region)
+- Device types
+- Referrers
+- Session duration
+- And more standard web analytics metrics
+
+The analytics script is only loaded if `GA4_MEASUREMENT_ID` is set, so it won't affect your app if you don't configure it.
 - `TOKENIZERS_PARALLELISM`: Set to `false` to avoid warnings
 
 ### Memory Optimization
